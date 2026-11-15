@@ -47,10 +47,11 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<LoginResponse> {
-    const user = await this.usersService.findByEmail(dto.email);
+    const identifier = dto.identifier ?? dto.email ?? '';
+    const user = await this.usersService.findByIdentifier(identifier);
 
-    // Mesma mensagem para e-mail inexistente e password errada:
-    // não revela quais e-mails estão registados.
+    // Mesma mensagem para utilizador inexistente e password errada:
+    // não revela quais e-mails ou NIFs estão registados.
     const valid = user && (await bcrypt.compare(dto.password, user.password));
     if (!user || !valid) {
       throw new UnauthorizedException('Credenciais inválidas');

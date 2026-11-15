@@ -1,126 +1,66 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Bulir Core API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API RESTful da plataforma de reservas de serviços (Desafio 1). Clientes reservam serviços de prestadores e pagam com o saldo que têm na plataforma.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+**Stack:** NestJS 12 · TypeScript · Prisma · PostgreSQL · JWT · Vitest
 
-## Description
+## Porquê PostgreSQL
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+O núcleo do negócio é dinheiro: débito do cliente, crédito do prestador e registo da reserva têm de acontecer **todos ou nenhum**. Uma base relacional com transações ACID e `Decimal` exato é a escolha natural (NoSQL exigiria compensações manuais). Os valores monetários são `Decimal(12,2)`, nunca `Float`.
 
-## Project setup
+## Como correr
 
 ```bash
-$ npm install
+cp .env.example .env        # preencher DATABASE_URL, DIRECT_URL e JWT_SECRET
+npm install
+npm run prisma:deploy       # aplica as migrações
+npm run start:dev           # http://localhost:3000
+npm test                    # testes (Prisma mockado)
 ```
 
-## Compile and run the project
+Base de dados local rápida com Docker:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+docker run -d --name bulir-pg -e POSTGRES_PASSWORD=test -e POSTGRES_DB=bulir -p 55432:5432 postgres:16-alpine
+# DATABASE_URL=DIRECT_URL=postgresql://postgres:test@localhost:55432/bulir
 ```
 
-## Run tests
+## Respostas e erros
 
-```bash
-# unit tests
-$ npm run test
+Sucesso: `{ "success": true, "data": ... }`. Erro (formato único para todos os códigos):
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+```json
+{ "success": false, "statusCode": 409, "message": "...", "errors": ["..."], "path": "/bookings", "timestamp": "..." }
 ```
 
-## Deployment
+`400` validação / saldo insuficiente · `401` token em falta ou inválido · `403` sem permissão · `404` não encontrado · `409` conflito (duplicado, já cancelada, serviço com reservas).
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Endpoints
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Todos exigem `Authorization: Bearer <token>`, exceto `register`, `login` e `GET /`.
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+| Método | Rota | Perfil | Descrição |
+|---|---|---|---|
+| POST | `/auth/register` | público | Cadastro (nome, NIF, e-mail, senha, `role`). NIF e e-mail únicos (e-mail sem distinguir maiúsculas) |
+| POST | `/auth/login` | público | `{ identifier, password }` com **e-mail ou NIF**. `email` ainda é aceite como alias |
+| GET | `/users/me` | todos | Perfil e saldo |
+| POST | `/users/deposit` | cliente | Carrega saldo (simulado, máx. 1.000.000) |
+| GET | `/services` · `/services/:id` | todos | Lista / detalhe |
+| POST | `/services` | prestador | Cria serviço (nome, descrição, preço > 0, até 2 casas) |
+| PATCH | `/services/:id` | prestador dono | Edita; outro prestador recebe `403` |
+| DELETE | `/services/:id` | prestador dono | Exclui; `409` se já tem reservas (preserva o histórico) |
+| POST | `/bookings` | cliente | `{ serviceId }` reserva e move o dinheiro |
+| GET | `/bookings` | todos | Histórico: cliente vê as suas, prestador as dos seus serviços |
+| PATCH | `/bookings/:id/cancel` | cliente da reserva ou prestador do serviço | Devolve o valor por inteiro ao cliente e debita o prestador |
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Decisões de design
 
-## Observability
+- **Atomicidade sem locks manuais.** O débito do cliente é um único `UPDATE ... WHERE balance >= preço` dentro de `prisma.$transaction`. Verificar e debitar é um passo só, por isso pedidos concorrentes nunca gastam o mesmo saldo duas vezes e o saldo nunca fica negativo. Um saldo igual ao preço é suficiente.
+- **Cancelamento idempotente.** A reserva passa de `CONFIRMED` a `CANCELLED` com `UPDATE ... WHERE status = 'CONFIRMED'`: com cancelamentos simultâneos só um reembolsa, os outros recebem `409`. Se o prestador já não tiver saldo para o estorno, tudo é revertido (`409`).
+- **Autorização explícita.** `JwtAuthGuard` (sem Passport) autentica; `RolesGuard` + `@Roles()` aplicam o perfil; a posse do recurso (dono do serviço, participante da reserva) é verificada no service.
+- **Validação por DTO** (`whitelist` + `forbidNonWhitelisted`) e filtro global que garante um único formato de erro.
+- **Montante gravado na reserva** (`amount`): mudar o preço do serviço depois não altera o histórico nem o reembolso.
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+## Verificação feita
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-This project is already instrumented. To connect it, run this and approve the code it prints at [observe.nestjs.com/link](https://observe.nestjs.com/link) - signing up for free if you have no account:
-
-```bash
-$ npx @nestjs/observe link
-```
-
-It writes the app key and secret into `.env` and makes every `nest start` script (`start`, `start:dev`, `start:debug`) load it. In production, set `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment instead.
-
-Or do it by hand: create an application and an API key at [observe.nestjs.com](https://observe.nestjs.com), and set the pair as `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment the app runs in.
-
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Além dos testes unitários, a lógica foi exercitada contra PostgreSQL real: com saldo para uma única reserva, 10 pedidos simultâneos produziram `201` + 9× `400` e saldo final 0; 5 cancelamentos simultâneos produziram `200` + 4× `409` com os saldos restaurados.

@@ -38,8 +38,15 @@ export class UsersService {
     return toUserResponse(updated);
   }
 
-  findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { email } });
+  /**
+   * Procura por e-mail ou NIF. O e-mail é guardado em minúsculas e o NIF em
+   * maiúsculas, por isso normalizamos o identificador para os dois casos.
+   */
+  findByIdentifier(identifier: string): Promise<User | null> {
+    const value = identifier.trim();
+    return this.prisma.user.findFirst({
+      where: { OR: [{ email: value.toLowerCase() }, { nif: value.toUpperCase() }] },
+    });
   }
 
   findByEmailOrNif(email: string, nif: string): Promise<User | null> {
