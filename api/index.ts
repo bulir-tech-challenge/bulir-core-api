@@ -3,6 +3,7 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import express, { type Express, type Request, type Response } from 'express';
 import { AppModule, ObserveInstrument } from '../src/app.module.js';
 import { configureApp } from '../src/app.setup.js';
+import { setupSwagger } from '../src/config/swagger.config.js';
 
 let cachedServer: Express;
 
@@ -13,6 +14,8 @@ async function bootstrap(): Promise<Express> {
       instrument: process.env.OBSERVE_APP_KEY ? ObserveInstrument : undefined,
     });
     configureApp(app);
+    setupSwagger(app);
+    expressApp.set('trust proxy', 1); // IP real atrás do proxy (rate limiting)
     app.enableCors();
     await app.init();
     cachedServer = expressApp;

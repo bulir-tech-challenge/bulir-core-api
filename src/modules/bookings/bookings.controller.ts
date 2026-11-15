@@ -10,6 +10,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
@@ -19,22 +20,27 @@ import type { AuthUser } from '../auth/interfaces/jwt-payload.interface.js';
 import { BookingsService } from './bookings.service.js';
 import { CreateBookingDto } from './dto/create-booking.dto.js';
 
+@ApiTags('bookings')
+@ApiBearerAuth()
 @Controller('bookings')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class BookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
+  @ApiOperation({ summary: 'Reserva um serviço com débito atómico do saldo (cliente)' })
   @Post()
   @Roles(Role.CLIENT)
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateBookingDto) {
     return this.bookingsService.create(user, dto.serviceId);
   }
 
+  @ApiOperation({ summary: 'Histórico de reservas do utilizador' })
   @Get()
   findAll(@CurrentUser() user: AuthUser) {
     return this.bookingsService.findAll(user);
   }
 
+  @ApiOperation({ summary: 'Cancela reserva e reembolsa o cliente' })
   @Patch(':id/cancel')
   @HttpCode(HttpStatus.OK)
   cancel(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {

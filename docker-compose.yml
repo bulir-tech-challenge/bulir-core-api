@@ -1,0 +1,35 @@
+# Ambiente completo (API + PostgreSQL) com um único comando:
+#   docker compose up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: bulir
+      POSTGRES_PASSWORD: bulir
+      POSTGRES_DB: bulir
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U bulir -d bulir']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '${PORT:-3000}:3000'
+    environment:
+      DATABASE_URL: postgresql://bulir:bulir@db:5432/bulir
+      DIRECT_URL: postgresql://bulir:bulir@db:5432/bulir
+      # Defina um segredo próprio; este valor serve apenas ao ambiente local.
+      JWT_SECRET: ${JWT_SECRET:-troque-este-segredo-em-producao}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-120}
+      AUTH_THROTTLE_LIMIT: ${AUTH_THROTTLE_LIMIT:-10}
+
+volumes:
+  pgdata:

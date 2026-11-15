@@ -2,7 +2,7 @@
 
 API RESTful da plataforma de reservas de serviços (Desafio 1). Clientes reservam serviços de prestadores e pagam com o saldo que têm na plataforma.
 
-**Stack:** NestJS 12 · TypeScript · Prisma · PostgreSQL · JWT · Vitest
+**Stack:** NestJS 12 · TypeScript · Prisma · PostgreSQL · JWT · Swagger · Docker · Vitest
 
 ## Porquê PostgreSQL
 
@@ -17,6 +17,18 @@ npm run prisma:deploy       # aplica as migrações
 npm run start:dev           # http://localhost:3000
 npm test                    # testes (Prisma mockado)
 ```
+
+### Com Docker (API + PostgreSQL, um único comando)
+
+```bash
+docker compose up --build   # http://localhost:3000, migrações aplicadas no arranque
+```
+
+Defina `JWT_SECRET` no ambiente para um segredo próprio. A imagem é multi-stage, corre como utilizador não-root e tem `HEALTHCHECK`.
+
+### Documentação interativa (Swagger)
+
+Com a API a correr: **`/docs`** (interface) e **`/docs-json`** (OpenAPI). Use *Authorize* com o token devolvido por `/auth/login`.
 
 Base de dados local rápida com Docker:
 
@@ -52,6 +64,13 @@ Todos exigem `Authorization: Bearer <token>`, exceto `register`, `login` e `GET 
 | POST | `/bookings` | cliente | `{ serviceId }` reserva e move o dinheiro |
 | GET | `/bookings` | todos | Histórico: cliente vê as suas, prestador as dos seus serviços |
 | PATCH | `/bookings/:id/cancel` | cliente da reserva ou prestador do serviço | Devolve o valor por inteiro ao cliente e debita o prestador |
+
+## Segurança
+
+- **Rate limiting** (`@nestjs/throttler`): 120 pedidos/min por IP em toda a API e 10/min em `/auth/*` (força bruta e criação em massa de contas); excedido devolve `429`. Configurável por `THROTTLE_LIMIT` e `AUTH_THROTTLE_LIMIT`.
+- **Cabeçalhos HTTP** com `helmet` (HSTS, `nosniff`, anti-clickjacking...).
+- **SQL Injection:** acesso a dados só via Prisma (consultas parametrizadas). **XSS/mass assignment:** DTOs com `whitelist` e `forbidNonWhitelisted`. **CSRF:** o JWT segue no cabeçalho `Authorization`, não em cookie, por isso não há sessão ambiente para forjar.
+- Senhas com `bcrypt`; e-mail e NIF nunca aparecem nas respostas sobre outros utilizadores.
 
 ## Decisões de design
 

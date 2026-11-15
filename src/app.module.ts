@@ -1,7 +1,10 @@
 import { Module, DynamicModule, Type, ForwardReference } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { createObserveModule } from '@nestjs/observe';
 import { envConfig } from './config/env.config.js';
+import { GLOBAL_THROTTLE } from './config/throttle.config.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { BookingsModule } from './modules/bookings/bookings.module.js';
 import { ServicesModule } from './modules/services/services.module.js';
@@ -16,6 +19,7 @@ const imports: Array<Type<unknown> | DynamicModule | Promise<DynamicModule> | Fo
     isGlobal: true,
     load: [envConfig],
   }),
+  ThrottlerModule.forRoot([GLOBAL_THROTTLE]),
   PrismaModule,
   UsersModule,
   AuthModule,
@@ -36,6 +40,6 @@ if (process.env.OBSERVE_APP_KEY) {
 @Module({
   imports,
   controllers: [AppController],
-  providers: [],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { AppModule, ObserveInstrument } from './app.module.js';
 import { configureApp } from './app.setup.js';
+import { setupSwagger } from './config/swagger.config.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -9,6 +10,7 @@ async function bootstrap() {
   });
 
   configureApp(app);
+  setupSwagger(app);
   app.enableCors();
 
   const port = app.get(ConfigService).get<number>('port') ?? 3000;
